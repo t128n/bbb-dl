@@ -1,9 +1,15 @@
 /.idea
-/tests
 __pycache__
+*.pyc
 bbb_dl.egg-info
 dist
 TODO.md
 /.vscode/launch.json
 /.venv
 /build
+.pytest_cache/
+.ruff_cache/
+*.mp4
+*.webm
+*.mp3
+*.m4a

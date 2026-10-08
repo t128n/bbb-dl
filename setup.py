@@ -39,6 +39,17 @@ setup(
         'python-ffmpeg>=2.0.12',
         'requests>=2.24.0',
     ],
+    extras_require={
+        'dev': [
+            'black>=24.0.0',
+            'isort>=5.13.0',
+            'ruff>=0.4.0',
+            'pytest>=8.0.0',
+            'build>=1.0.0',
+            'twine>=5.0.0',
+            'wheel>=0.40.0',
+        ],
+    },
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: End Users/Desktop',

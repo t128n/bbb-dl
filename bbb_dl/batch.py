@@ -308,8 +308,8 @@ def get_parser():
         '--audiocodec',
         dest='audiocodec',
         type=str,
-        default='copy',
-        help='Optional audiocodec to pass to ffmpeg (default copy the codec from the original source)',
+        default='aac',
+        help='Optional audiocodec to pass to ffmpeg (default aac)',
     )
     parser.add_argument(
         '--preset',

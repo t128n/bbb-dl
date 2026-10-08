@@ -23,6 +23,70 @@ If something does not work, feel free to [contact me](https://github.com/C0D3D3V
 If you ever need to update `bbb-dl` run: `pip install -U bbb-dl`
 
 
+### Quickstart with mise
+
+This repository includes a [`mise.toml`](./mise.toml) configured with required runtimes (`python 3.12`, `uv`, `ffmpeg`), automatic virtual environment management, and developer tasks.
+
+```bash
+# 1. One-step setup (creates .venv, installs dependencies in editable mode, and downloads Playwright Chromium)
+mise run setup
+
+# 2. Run bbb-dl
+mise run dl -- https://your.bbb.org/playback/presentation/2.3/playback.html?meetingId=...
+
+# Run batch downloader
+mise run batch -- urls.txt
+
+# Run verification and tests
+mise run check
+```
+
+<details>
+  <summary>Available mise tasks</summary>
+
+| Task | Command | Description |
+| :--- | :--- | :--- |
+| **setup** | `mise run setup` | Install package in editable mode with dev extras + download Playwright Chromium |
+| **install** | `mise run install` | Install package in editable mode (`uv pip install -e .`) |
+| **install:dev** | `mise run install:dev` | Install package with development dependencies (`uv pip install -e ".[dev]"`) |
+| **install:playwright** | `mise run install:playwright` | Download and install Playwright Chromium browser |
+| **dl** | `mise run dl -- [OPTIONS] <URL>` | Execute `bbb-dl` downloader CLI |
+| **batch** | `mise run batch -- [OPTIONS] <FILE>` | Execute `bbb-dl-batch` batch downloader CLI |
+| **auth** | `mise run auth -- [SUBCOMMAND]` | Manage authentication session cookies (`login`, `set-cookie`, `list`, `clear`) |
+| **test** | `mise run test` | Run test suite with `pytest` |
+| **lint** | `mise run lint` | Check code with `ruff check` |
+| **lint:fix** | `mise run lint:fix` | Auto-fix linting issues with `ruff` |
+| **format** | `mise run format` | Format code with `ruff format` and `isort` |
+| **format:check** | `mise run format:check` | Check code formatting without modifications |
+| **check** | `mise run check` | Run linter and test suite |
+| **build** | `mise run build` | Build source distribution and wheel with `build` |
+| **build:check** | `mise run build:check` | Validate built packages with `twine check` |
+| **clean** | `mise run clean` | Remove build, dist, and cache artifacts |
+
+</details>
+
+### Authentication (Protected Recordings)
+
+If a BigBlueButton recording is protected behind LMS / SSO login (returning `404 Not Found` for `metadata.xml`), you can authenticate using `bbb-dl auth`:
+
+```bash
+# 1. Interactive login via browser (opens Playwright browser, captures cookies upon login):
+bbb-dl auth login bbb.example.com
+# or pass the full playback URL directly:
+bbb-dl auth login https://bbb.example.com/playback/presentation/2.3/...
+
+# 2. Or set a cookie manually (e.g. copied from your browser DevTools):
+bbb-dl auth set-cookie bbb.example.com <cookie_name> <cookie_value>
+
+# 3. View saved cookies:
+bbb-dl auth list
+
+# 4. Clear saved cookies:
+bbb-dl auth clear
+```
+Cookies are saved in Netscape format in `~/.local/share/bbb-dl/cookies.txt` (or custom `--working-dir`) and are automatically used by `bbb-dl`.
+
+
 <details>
   <summary> For Experts: Click here for alternatively Setup using a virtual environment</summary>
 
@@ -98,7 +162,7 @@ options:
   --version             Print program version and exit
   --encoder ENCODER     Optional encoder to pass to ffmpeg (default libx264)
   --audiocodec AUDIOCODEC
-                        Optional audiocodec to pass to ffmpeg (default copy the codec from the original source)
+                        Optional audiocodec to pass to ffmpeg (default aac)
   --preset PRESET       Optional preset to pass to ffmpeg (default fast, a preset that can be used with all encoders)
   --crf CRF             Optional crf to pass to ffmpeg (default 23, lower crf (e.g 22) usually means larger file size and better video quality)
   -f FILENAME, --filename FILENAME

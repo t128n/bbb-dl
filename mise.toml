@@ -1,0 +1,100 @@
+[tools]
+python = "3.12"
+uv = "latest"
+ffmpeg = "latest"
+
+[settings]
+python.uv_venv_auto = "create|source"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
+_.path = [
+  "{{config_root}}/.venv/bin",
+  "{{config_root}}",
+]
+
+# ------------------------------------------------------------------------------
+# Setup & Dependency Tasks
+# ------------------------------------------------------------------------------
+
+[tasks.setup]
+description = "Set up development environment: install dependencies and Playwright Chromium"
+depends = ["install:dev", "install:playwright"]
+
+[tasks.install]
+description = "Install bbb-dl package in editable mode"
+run = "uv pip install -e ."
+
+[tasks."install:dev"]
+description = "Install bbb-dl package with development tools (linting, testing, build)"
+run = "uv pip install -e \".[dev]\""
+
+[tasks."install:playwright"]
+description = "Download and configure Playwright Chromium browser"
+run = "playwright install chromium"
+
+# ------------------------------------------------------------------------------
+# Application Runners
+# ------------------------------------------------------------------------------
+
+[tasks.dl]
+alias = "bbb-dl"
+description = "Run bbb-dl downloader (pass recording URL and options)"
+run = "bbb-dl \"$@\""
+
+[tasks.batch]
+alias = "bbb-dl-batch"
+description = "Run bbb-dl-batch downloader (pass batch file and options)"
+run = "bbb-dl-batch \"$@\""
+
+[tasks.auth]
+description = "Manage authentication and session cookies (login, set-cookie, list, clear)"
+run = "bbb-dl auth \"$@\""
+
+# ------------------------------------------------------------------------------
+# Testing & Code Quality
+# ------------------------------------------------------------------------------
+
+[tasks.test]
+description = "Run test suite with pytest"
+run = "pytest"
+
+[tasks.lint]
+description = "Lint codebase with ruff"
+run = "ruff check ."
+
+[tasks."lint:fix"]
+description = "Automatically fix linting issues with ruff"
+run = "ruff check --fix ."
+
+[tasks.format]
+description = "Format codebase with ruff and black/isort"
+run = "ruff format . && isort ."
+
+[tasks."format:check"]
+description = "Verify code formatting without modifying files"
+run = "ruff format --check ."
+
+[tasks.check]
+description = "Run all validation checks (linting and tests)"
+depends = ["lint", "test"]
+
+# ------------------------------------------------------------------------------
+# Build & Distribution
+# ------------------------------------------------------------------------------
+
+[tasks.build]
+description = "Build source distribution (sdist) and wheel"
+run = "python -m build"
+
+[tasks."build:check"]
+description = "Check built distribution packages with twine"
+depends = ["build"]
+run = "twine check dist/*"
+
+[tasks.clean]
+description = "Clean build artifacts, caches, and egg-info directories"
+run = """
+rm -rf build dist *.egg-info .pytest_cache .ruff_cache
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+"""

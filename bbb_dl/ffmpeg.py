@@ -274,6 +274,13 @@ class FFMPEG:
     ):
         webcam_width, webcam_height = self.get_webcam_size(slideshow_width, slideshow_height)
 
+        output_options = {
+            'c:v': self.encoder,
+            'c:a': self.audiocodec,
+        }
+        if self.audiocodec not in ['copy', None]:
+            output_options['b:a'] = '192k'
+
         ffmpeg = (
             FFmpeg(self.ffmpeg_path)
             .option("hide_banner")
@@ -281,10 +288,7 @@ class FFMPEG:
             .input(slideshow_path)
             .output(
                 result_path,
-                {
-                    'c:v': self.encoder,
-                    'c:a': self.audiocodec,
-                },
+                output_options,
                 filter_complex=(
                     f'[0:v]scale={webcam_width}:{webcam_height},setpts=PTS-STARTPTS,'
                     + 'format=rgba,colorchannelmixer=aa=0.8'
@@ -300,6 +304,13 @@ class FFMPEG:
         await ffmpeg.execute()
 
     async def add_audio_to_slideshow(self, slideshow_path: str, webcams_path: str, result_path: str):
+        output_options = {
+            'c:v': self.encoder,
+            'c:a': self.audiocodec,
+        }
+        if self.audiocodec not in ['copy', None]:
+            output_options['b:a'] = '192k'
+
         ffmpeg = (
             FFmpeg(self.ffmpeg_path)
             .option("hide_banner")
@@ -307,10 +318,7 @@ class FFMPEG:
             .input(slideshow_path)
             .output(
                 result_path,
-                {
-                    'c:v': self.encoder,
-                    'c:a': self.audiocodec,
-                },
+                output_options,
                 map=['0:a', '1:v'],
                 strict='experimental',
                 crf=self.crf,

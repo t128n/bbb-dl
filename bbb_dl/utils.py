@@ -20,6 +20,8 @@ from pathlib import Path
 
 import requests
 import urllib3
+import asyncio
+from yarl import URL
 from aiohttp.cookiejar import CookieJar
 from requests.utils import DEFAULT_CA_BUNDLE_PATH, extract_zipped_paths
 
@@ -340,30 +342,28 @@ def convert_to_aiohttp_cookie_jar(mozilla_cookie_jar: http.cookiejar.MozillaCook
     Convert an http.cookiejar.MozillaCookieJar that uses a Netscape HTTP Cookie File to an aiohttp.cookiejar.CookieJar
     Tested with aiohttp v3.8.4
     """
-    aiohttp_cookie_jar = CookieJar(unsafe=True)  # unsafe = Allow also cookies for IPs
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+    aiohttp_cookie_jar = CookieJar(unsafe=True, loop=loop)
 
-    # pylint: disable=protected-access
-    for cookie_domain, domain_cookies in mozilla_cookie_jar._cookies.items():
-        for cookie_path, path_cookies in domain_cookies.items():
-            for cookie_name, cookie in path_cookies.items():
-                # cookie_name is cookie.name; cookie_path is cookie.path; cookie_domain is cookie.domain
-                morsel = http.cookies.Morsel()
-                morsel.update(
-                    {
-                        "expires": cookie.expires,
-                        "path": cookie.path,
-                        "comment": cookie.comment,
-                        "domain": cookie.domain,
-                        # "max-age"  : "Max-Age",
-                        "secure": cookie.secure,
-                        # "httponly": "HttpOnly",
-                        "version": cookie.version,
-                        # "samesite": "SameSite",
-                    }
-                )
-                # pylint: disable=protected-access
-                morsel.set(cookie.name, cookie.value, http.cookies._quote(cookie.value))
-                aiohttp_cookie_jar._cookies[(cookie_domain, cookie_path)][cookie_name] = morsel
+    for cookie in mozilla_cookie_jar:
+        scheme = "https" if cookie.secure else "http"
+        domain = cookie.domain.lstrip(".")
+        url = URL(f"{scheme}://{domain}{cookie.path or '/'}")
+        morsel = http.cookies.Morsel()
+        morsel.set(cookie.name, cookie.value, http.cookies._quote(cookie.value))
+        morsel.update(
+            {
+                "domain": cookie.domain,
+                "path": cookie.path,
+                "secure": cookie.secure,
+            }
+        )
+        if cookie.expires:
+            morsel["expires"] = http.cookiejar.time2netscape(cookie.expires)
+        aiohttp_cookie_jar.update_cookies({cookie.name: morsel}, url)
 
     return aiohttp_cookie_jar
 

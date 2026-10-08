@@ -7,6 +7,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
@@ -29,6 +30,7 @@ from playwright.async_api import async_playwright
 from playwright.async_api._generated import Page
 
 from bbb_dl.ffmpeg import FFMPEG
+from bbb_dl.tldraw import inject_tldraw_into_shapes
 from bbb_dl.utils import KNOWN_VIDEO_AUDIO_EXTENSIONS, BBBDLCookieJar, Log
 from bbb_dl.utils import PathTools as PT
 from bbb_dl.utils import (
@@ -221,6 +223,7 @@ class BBBDL:
             'notes.html',
             'polls.json',
             'external_videos.json',
+            'tldraw.json',
         ]
         cam_webm_idx = append_get_idx(dl_jobs, 'video/webcams.webm')
         cam_mp4_idx = append_get_idx(dl_jobs, 'video/webcams.mp4')
@@ -246,6 +249,11 @@ class BBBDL:
         loaded_shapes = self.load_xml('shapes.svg')
         dl_jobs = self.get_all_image_urls(loaded_shapes)
         _ = asyncio.run(self.batch_download_from_bbb(dl_jobs))
+
+        tldraw_path = PT.get_in_dir(self.tmp_dir, 'tldraw.json')
+        shapes_path = PT.get_in_dir(self.tmp_dir, 'shapes.svg')
+        if os.path.isfile(tldraw_path) and not self.skip_annotations_opt:
+            loaded_shapes = inject_tldraw_into_shapes(shapes_path, tldraw_path, loaded_shapes)
 
         metadata = self.parse_metadata()
         deskshare_events = self.parse_deskshare_data(metadata.duration)
@@ -610,10 +618,14 @@ class BBBDL:
     async def show_drawing(self, page: Page, action: Action):
         await page.evaluate(
             """([id, shape_id]) => {
-                document.querySelectorAll('[shape=' + shape_id + ']').forEach( element => {
+                document.querySelectorAll(`[shape="${CSS.escape(shape_id)}"]`).forEach( element => {
                     element.style.visibility = 'hidden'
                 })
-                document.querySelector('#' + id).style.visibility = 'visible'
+                const el = document.getElementById(id)
+                if (el) {
+                    el.style.visibility = 'visible'
+                    el.style.display = ''
+                }
             }""",
             [action.element_id, action.value],
         )
@@ -621,7 +633,10 @@ class BBBDL:
     async def hide_drawing(self, page: Page, action: Action):
         await page.evaluate(
             """(id) => {
-                document.querySelector('#' + id).style.display = 'none'
+                const el = document.getElementById(id)
+                if (el) {
+                    el.style.display = 'none'
+                }
             }""",
             action.element_id,
         )  # Maybe use visibility?
@@ -982,6 +997,12 @@ class BBBDL:
             for idx, downloaded in enumerate(dl_results):
                 if not downloaded:
                     Log.error(f'Error: {dl_jobs[idx]} is essential. Abort! Please try again later!')
+                    hostname = self.video_website.split('://')[-1]
+                    Log.yellow('Hint: This recording may be protected or require authentication.')
+                    Log.yellow('You can log in and save session cookies with:')
+                    Log.yellow(f'    bbb-dl auth login {hostname}')
+                    Log.yellow('Or add a session cookie manually with:')
+                    Log.yellow(f'    bbb-dl auth set-cookie {hostname} <cookie_name> <cookie_value>')
                     exit(1)
         return dl_results
 
@@ -1249,6 +1270,7 @@ class BBBDL:
             timestamps = list(frames.keys())
             for idx in range(len(timestamps) - 1):
                 duration = math.floor(10 * (timestamps[idx + 1] - timestamps[idx]) + 0.5) / 10
+                duration = max(0.1, duration)
                 concat_file.write(f"file '{frames[timestamps[idx]].capture_filename}'\n")
                 concat_file.write(f"duration {formatSeconds(duration, msec=True)}\n")
 
@@ -1278,7 +1300,15 @@ class BBBDL:
 
 def get_parser():
     parser = argparse.ArgumentParser(
-        description=('Big Blue Button Downloader that downloads a BBB lesson as MP4 video')
+        description=('Big Blue Button Downloader that downloads a BBB lesson as MP4 video'),
+        epilog=(
+            'Authentication commands:\n'
+            '  bbb-dl auth login <target>               Interactive browser login to capture cookies\n'
+            '  bbb-dl auth set-cookie <host> <name> <val> Save a session cookie manually\n'
+            '  bbb-dl auth list                         List saved cookies\n'
+            '  bbb-dl auth clear                        Clear saved cookies'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument('URL', type=str, help='URL of a BBB lesson')
@@ -1411,8 +1441,8 @@ def get_parser():
         '--audiocodec',
         dest='audiocodec',
         type=str,
-        default='copy',
-        help='Optional audiocodec to pass to ffmpeg (default copy the codec from the original source)',
+        default='aac',
+        help='Optional audiocodec to pass to ffmpeg (default aac)',
     )
     parser.add_argument(
         '--preset',
@@ -1486,6 +1516,12 @@ def get_parser():
 # --- called at the program invocation: -------------------------------------
 def main(args=None):
     just_fix_windows_console()
+    argv = sys.argv[1:] if args is None else args
+    if len(argv) > 0 and argv[0] == 'auth':
+        from bbb_dl.auth import auth_main
+        auth_main(argv[1:])
+        return
+
     args = get_parser().parse_args(args)
 
     with Timer() as final_t:
